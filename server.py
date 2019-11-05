@@ -23,8 +23,11 @@ import socket
 import threading
 import requests
 import netifaces
+import time
 
-IP, PORT = input("Server address: ").split(":", 2)#"127.0.0.1"
+#IP, PORT = input("Server address: ").split(":", 2)#"127.0.0.1"
+IP = "127.0.0.1"
+PORT = 5000
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -91,6 +94,10 @@ def client_thread(client_socket):
                     users.append(user)
                     print("Accepted new connection from {}:{}, username: {}".format(*client_address, user))
                     client_socket.send(encode_msg("[SERVER]", "Connection accepted"))
+                    for usr in users:
+                        print("userlist sending: " + usr)
+                        sleep(.1)
+                        client_socket.send(encode_msg("[userlist]", usr))
                     continue
             else:
                 continue

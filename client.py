@@ -31,21 +31,34 @@ import tkinter
 users = []
 
 def decode_msg(msg):
+    global users
     msg = msg.decode()
+    print(msg)
     if msg == "Username already taken":
         print("Username already taken on that server")
         return "", "stop"
         disconnect()
+
     usr, msg = msg.split("§", 2)
+
     if msg == "LOG ON":
-        print("logon")
         users.append(usr)
+        print("new users: " + str(users))
         return "[SERVER]", usr + " has logged on"
+
     if msg == "LOG OFF":
-        print("logoff")
+        print("going to remove: " + usr)
+        print("users: " + str(users))
         users.remove(usr)
+        print("new users: " + str(users))
         return "[SERVER]", usr + " has logged off"
+
+    if usr == "[userlist]":
+        print("got msg from userlist: " + msg)
+        users.append(msg)
+
     return usr, msg
+
 def encode_msg(usr, msg):
     msg = usr + "§" + msg
     msg = msg.encode()
@@ -58,8 +71,8 @@ my_username = "guest"
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connected = "none"
 
-config_file = open("config.txt")
-servers_file = open("servers.txt")
+config_file = open("config")
+servers_file = open("servers")
 known_servers = servers_file.readlines()
 
 window = Tk()
@@ -96,7 +109,7 @@ def receive_msg():
             user, message = decode_msg(client_socket.recv(4096))
             if message == "stop":
                 break
-            if user != my_username:
+            if user != my_username and user != "[userlist]":
                 msg = user + " > " + message
                 chat_text["state"] = NORMAL
                 chat_text.insert("end", user, ("left", "blue"))
@@ -172,7 +185,7 @@ def add_bookmark_prompt_func():
 
     def add_bookmark(addr):
         if addr != "none":
-            f = open("servers.txt", "a")
+            f = open("servers", "a")
             name = name_var.get()
             addr = addr.rstrip()
             f.write(name + "§;" + addr + "\n")
@@ -228,7 +241,7 @@ def edit_bookmark_prompt_func():
 
     def update_bookmarks():
         global known_servers
-        servers_file = open("servers.txt")
+        servers_file = open("servers")
         known_servers = servers_file.readlines()
         bookmark_list.delete(0, "end")
 
@@ -241,7 +254,7 @@ def edit_bookmark_prompt_func():
         addr = bookmark_address_var.get()
 
         if addr != "":
-            f = open("servers.txt", "a")
+            f = open("servers", "a")
             f.write(name + "§;" + addr + "\n")
             global known_servers
             i = len(known_servers)
@@ -258,11 +271,11 @@ def edit_bookmark_prompt_func():
         new_address = bookmark_address_var.get()
         new_bookmark = new_name + "§;" + new_address + "\n"
         #known_servers[i] = new_bookmark
-        f = open("servers.txt", "r")
+        f = open("servers", "r")
         old_servers = f.readlines()
         old_servers[i] = new_bookmark
         f.close()
-        f = open("servers.txt", "w")
+        f = open("servers", "w")
         f.writelines(old_servers)
         update_bookmarks()
 
