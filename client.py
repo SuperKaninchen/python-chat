@@ -28,6 +28,7 @@ from tkinter import *
 from tkinter import scrolledtext
 import tkinter
 
+users = []
 
 def decode_msg(msg):
     msg = msg.decode()
@@ -36,6 +37,14 @@ def decode_msg(msg):
         return "", "stop"
         disconnect()
     usr, msg = msg.split("§", 2)
+    if msg == "LOG ON":
+        print("logon")
+        users.append(usr)
+        return "[SERVER]", usr + " has logged on"
+    if msg == "LOG OFF":
+        print("logoff")
+        users.remove(usr)
+        return "[SERVER]", usr + " has logged off"
     return usr, msg
 def encode_msg(usr, msg):
     msg = usr + "§" + msg
@@ -60,7 +69,7 @@ windowWidth = window.winfo_width()
 
 main_frame = Frame(window, width=600, height=600, bg="green")
 chat_frame = Frame(main_frame, width=500, height=500, bg="blue")
-chat_text = Text(chat_frame, width=500, height=500, font="Courier 26")
+chat_text = Text(chat_frame, width=500, height=500, font="Courier 22")
 entry_text = Text(main_frame)
 menubar = Menu(window)
 bookmark_menu = Menu(menubar, tearoff = 0)

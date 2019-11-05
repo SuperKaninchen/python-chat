@@ -15,10 +15,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-print("Python chat  Copyright (C) 2019  Max Nijenhuis\n"+
-"This program comes with ABSOLUTELY NO WARRANTY; for details click on Help -> License.\n"+
-"This is free software, and you are welcome to redistribute it\n"+
-"under certain conditions; click on Help -> License for details.\n")
 
 
 
@@ -66,6 +62,9 @@ def client_thread(client_socket):
             break;
         user, message = decode_msg(message)
         if message == "LOG OFF":
+            for sock in sockets_list:
+                if sock != server_socket:
+                    sock.send(encode_msg(user, message))
             client_socket.close()
             print(user + " logged off")
             break;
@@ -82,8 +81,11 @@ def client_thread(client_socket):
                 if user in users or user == "[SERVER]":
                     client_socket.send(encode_msg("[SERVER]", "Username already taken"))
                     client_socket.close()
-                    continue
+                    break
                 else:
+                    for sock in sockets_list:
+                        if sock != server_socket:
+                            sock.send(encode_msg(user, message))
                     sockets_list.append(client_socket)
                     clients[client_socket] = user
                     users.append(user)
