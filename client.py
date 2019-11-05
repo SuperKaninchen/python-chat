@@ -1,3 +1,26 @@
+"""
+Python chat using sockets and TKinter
+Copyright (C) 2019  Max Nijenhuis
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+print("Python chat  Copyright (C) 2019  Max Nijenhuis\n"+
+"This program comes with ABSOLUTELY NO WARRANTY; for details click on Help -> License.\n"+
+"This is free software, and you are welcome to redistribute it\n"+
+"under certain conditions; click on Help -> License for details.\n")
+
+
 import socket
 import threading
 from functools import partial
@@ -296,6 +319,21 @@ def username_prompt_func():
     username_entry.focus()
     username_prompt.attributes('-topmost', 'true')
 
+def license_prompt_func():
+    license_prompt = Toplevel()
+    license_prompt.title("About")
+    license_prompt.geometry("600x600")
+
+    license_text = Text(license_prompt)
+    license_text.place(x=0, y=0, width=600, height=600)
+    f = open("LICENSE")
+    license_lines = f.readlines()
+    for line in license_lines:
+        #print(line)
+        license_text.insert("end", line)
+    license_text["state"] = DISABLED
+    f.close()
+
 menubar = Menu(window)
 
 server_menu = Menu(menubar, tearoff = 0)
@@ -317,6 +355,11 @@ bookmark_menu.add_separator()
 bookmark_menu.add_command(label="Add", command=add_bookmark_prompt_func)
 bookmark_menu.add_command(label="Edit", command=edit_bookmark_prompt_func)
 menubar.add_cascade(label="Bookmarks", menu=bookmark_menu)
+
+help_menu = Menu(menubar, tearoff = 0)
+help_menu.add_command(label="License", command=license_prompt_func)
+menubar.add_cascade(label="Help", menu=help_menu)
+
 window.configure(menu=menubar)
 
 main_frame = Frame(window, width=600, height=600, bg="green")
@@ -343,5 +386,6 @@ username_prompt_func()
 
 window.update()
 window.minsize(600, 600)
+window.resizable(0, 0)
 
 window.mainloop()
