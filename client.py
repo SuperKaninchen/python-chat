@@ -852,3 +852,6 @@ window.minsize(600, 600)
 window.resizable(0, 0)
 
 window.mainloop()
+
+# use modeline modelines=1 in vimrc
+# vim: set fileencoding=utf-8 sta sts=4 sw=4 ts=4 ai et:
