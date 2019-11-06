@@ -34,8 +34,16 @@ server_socket.listen()
 sockets_list = [server_socket]
 clients = {}
 users = []
+known_users = []
+known_passwds = []
+with open('users') as f:
+    for line in f.readlines():
+        known_user, known_passwd = line.split(':;', 2)
+        known_users.append(known_user)
+        known_passwds.append(known_passwd)
 threads = []
 error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
+failed_login_text = '[SERVER]: Failed login attempt from %s:%s, username: %s'
 
 
 def decode_msg(msg):
@@ -64,6 +72,13 @@ def encode_msg(usr, msg):
     return msg
 
 
+def update_users_file():
+    with open('users', 'w') as f:
+        for usr in known_users:
+            line = usr + ':;' + known_passwds[known_users.index(usr)]
+            f.write(line + '\n')
+
+
 def client_thread(client_socket, client_address):
     while True:
         message = client_socket.recv(4096)
@@ -90,7 +105,7 @@ def client_thread(client_socket, client_address):
                 if sock != server_socket:
                     sock.send(encode_msg(user, message))
         else:
-            if message == 'LOG ON':
+            if 'LOG ON' in message:
                 if user in users or user == '[SERVER]':
                     client_socket.send(
                         encode_msg('[SERVER]', 'Username already taken')
@@ -98,6 +113,30 @@ def client_thread(client_socket, client_address):
                     client_socket.close()
                     break
                 else:
+                    if user in known_users:
+                        logon, given_passwd = message.split('||', 2)
+                        required_passwd = known_passwds[
+                            known_users.index(user)
+                        ].rstrip()
+                        print(required_passwd)
+                        if given_passwd != required_passwd:
+                            client_socket.send(
+                                encode_msg(
+                                    '[SERVER]',
+                                    'WRONG PASSWORD'
+                                )
+                            )
+                            client_socket.close()
+                            print(
+                                failed_login_text % (*client_address, user)
+                            )
+                            break
+                    else:
+                        logon, given_passwd = message.split('||', 2)
+                        known_users.append(user)
+                        known_passwds.append(given_passwd)
+                        update_users_file()
+                    message, given_passwd = message.split('||', 2)
                     for sock in sockets_list:
                         if sock != server_socket:
                             sock.send(encode_msg(user, message))

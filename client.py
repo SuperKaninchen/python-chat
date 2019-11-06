@@ -27,7 +27,10 @@ import time
 import datetime
 
 users = []
+with open('config') as f:
+    config = f.readlines()
 error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
+passwd = ''
 
 welcome = '''
 Python chat  Copyright (C) 2019  Max Nijenhuis
@@ -116,8 +119,10 @@ def send_msg(*args):
         print(error_text + 'send_msg: currently not connected')
     else:
         print_timestamp()
-        msg_timestamp = time.strftime("%H:%M")
+        msg_timestamp = time.strftime('%H:%M')
         msg = entry_text.get('1.0', 'end-1c')
+        if not msg:
+            return
         client_socket.send(encode_msg(my_username, msg))
         print(my_username + ' > ' + msg)
         chat_text['state'] = NORMAL
@@ -140,7 +145,7 @@ def receive_msg():
                 break
             print_timestamp()
             if user != my_username and user != '[userlist]':
-                msg_timestamp = time.strftime("%H:%M")
+                msg_timestamp = time.strftime('%H:%M')
                 chat_text['state'] = NORMAL
                 chat_text.insert('end', msg_timestamp, ('timestamp'))
                 chat_text.insert('end', user, ('left', 'blue'))
@@ -156,13 +161,75 @@ def receive_msg():
             break
 
 
+def passwd_prompt_func():
+    passwd_prompt = Toplevel()
+    passwd_prompt.title('Enter your password')
+    passwd_prompt.geometry('600x100')
+
+    passwd_label = Label(
+        passwd_prompt,
+        text='Enter your password:'
+    )
+
+    def confirm_passwd(*args):
+        global passwd
+        passwd = passwd_entry.get()
+        passwd_prompt.destroy()
+
+    def on_close():
+        pass
+
+    passwd_entry = Entry(passwd_prompt)
+    passwd_button = Button(
+        passwd_prompt,
+        text='Confirm password',
+        command=confirm_passwd
+    )
+    passwd_label.configure(
+        wraplength=150,
+        font='Courier 12'
+    )
+    passwd_label.place(
+        x=0,
+        y=0,
+        width=150,
+        height=50
+    )
+    passwd_entry.configure(font='Courier 20', show='^')
+    passwd_entry.place(
+        x=150,
+        y=0,
+        width=450,
+        height=50
+    )
+    passwd_entry.focus()
+    passwd_button.configure(
+        font='Courier 20',
+        command=partial(confirm_passwd)
+    )
+    passwd_button.place(
+        x=150,
+        y=50,
+        width=450,
+        height=50
+    )
+    passwd_prompt.protocol('WM_DELETE_WINDOW', on_close)
+    passwd_prompt.lift()
+    passwd_prompt.bind('<Return>', confirm_passwd)
+    passwd_prompt.grab_set()
+    passwd_prompt.focus()
+    passwd_prompt.attributes('-topmost', 'true')
+
+
 def custom_connect(addr):
     ip, port = addr.split(':')
     print('Trying to connect ' + my_username + ' to ' + ip + ':' + port)
     client_socket.connect((ip, int(port)))
     global connected
     connected = addr
-    client_socket.send(encode_msg(my_username, 'LOG ON'))
+    # passwd_prompt_func()
+    msg = 'LOG ON||' + passwd
+    client_socket.send(encode_msg(my_username, msg))
     newthread = threading.Thread(target=receive_msg)
     global userlist
     userlist = []
@@ -191,19 +258,8 @@ def connection_prompt_func():
     def connect(*args):
         IP = ip_var.get()
         PORT = port_var.get()
-        print(
-            'Trying to connect %s to %s:%s' %
-            (my_username, str(IP), str(PORT))
-        )
-        client_socket.connect((IP, PORT))
-        global connected
-        connected = str(IP)+':'+str(PORT)
-        client_socket.send(encode_msg(my_username, 'LOG ON'))
-        newthread = threading.Thread(target=receive_msg)
+        custom_connect(IP, PORT)
         connection_prompt.destroy()
-        global userlist
-        userlist = []
-        newthread.start()
 
     connection_prompt.geometry('600x150')
     connection_prompt.bind('<Return>', connect)
@@ -288,9 +344,9 @@ def add_bookmark_prompt_func():
                 label=name,
                 command=partial(custom_connect, addr)
             )
-            bookmark_prompt.destroy()
         else:
             print(error_text + 'add_bookmark: not connected to any server')
+        bookmark_prompt.destroy()
 
     bookmark_prompt.geometry('600x150')
     bookmark_prompt.wm_title('New bookmark')
@@ -539,10 +595,20 @@ def username_prompt_func():
         height=75
     )
     username_entry.configure(font='Courier 26')
-    username_entry.place(x=150, y=0, width=450, height=75)
+    username_entry.place(
+        x=150,
+        y=0,
+        width=450,
+        height=75
+    )
     username_entry.focus()
     username_button.configure(font='Courier 20')
-    username_button.place(x=150, y=75, width=450, height=25)
+    username_button.place(
+        x=150,
+        y=75,
+        width=450,
+        height=25
+    )
     username_prompt.lift()
     username_prompt.bind('<Return>', confirm_name)
     username_prompt.grab_set()
@@ -556,13 +622,82 @@ def license_prompt_func():
     license_prompt.geometry('600x600')
 
     license_text = Text(license_prompt)
-    license_text.place(x=0, y=0, width=600, height=600)
+    license_text.place(
+        x=0,
+        y=0,
+        width=600,
+        height=600
+    )
     f = open('LICENSE')
     license_lines = f.readlines()
     for line in license_lines:
         license_text.insert('end', line)
     license_text['state'] = DISABLED
     f.close()
+
+
+def config_prompt_func():
+    config_prompt = Toplevel()
+    config_prompt.title('Options')
+    config_prompt.geometry('600x600')
+
+    def confirm_name(*args):
+        global my_username
+        global config
+
+        if connected == 'none':
+            my_username = username_entry.get()
+        else:
+            old_addr = connected
+            disconnect()
+            my_username = username_entry.get()
+            time.sleep(.1)
+            custom_connect(old_addr)
+        with open('config', 'w') as config_file:
+            if remember_username.get():
+                config[0] = 'username:;' + my_username
+                for line in config:
+                    config_file.write(line)
+            else:
+                config[0] = 'username:;USERNAME NOT SET'
+                for line in config:
+                    config_file.write(line)
+
+    username_check = Checkbutton(config_prompt)
+    username_check.configure(
+        text='Remember Username',
+        variable=remember_username
+    )
+    if config[0].rstrip() != 'username:;USERNAME NOT SET':
+        username_check.select()
+    username_check.place(
+        x=0,
+        y=0,
+        width=200,
+        height=50
+    )
+    username_entry = Entry(config_prompt)
+    username_entry.configure(font='Courier 12')
+    username_entry.place(
+        x=200,
+        y=0,
+        width=250,
+        height=50
+    )
+    username_entry.delete(0, END)
+    username_entry.insert(0, my_username)
+    username_set_button = Button(config_prompt)
+    username_set_button.configure(
+        font='Courier 12',
+        text='Save config',
+        command=confirm_name
+    )
+    username_set_button.place(
+        x=450,
+        y=0,
+        width=150,
+        height=50
+    )
 
 
 # XXX: encapsulate global vars - in fact the client state - into object?
@@ -583,7 +718,10 @@ windowWidth = window.winfo_width()
 
 def on_close():
     if connected != 'none':
-        disconnect()
+        try:
+            disconnect()
+        except BrokenPipeError:
+            print(error_text + 'on_close: Broken pipe error')
     window.destroy()
 
 
@@ -614,6 +752,8 @@ bookmark_menu = Menu(menubar, tearoff=0)
 window.title('Chat Client')
 window.geometry('600x600')
 
+remember_username = BooleanVar()
+
 menubar = Menu(window)
 
 server_menu = Menu(menubar, tearoff=0)
@@ -626,6 +766,8 @@ menubar.add_cascade(label='Server', menu=server_menu)
 
 edit_menu = Menu(menubar, tearoff=0)
 edit_menu.add_command(label='Change username', command=username_prompt_func)
+edit_menu.add_separator()
+edit_menu.add_command(label='Options', command=config_prompt_func)
 menubar.add_cascade(label='Edit', menu=edit_menu)
 
 bookmark_menu = Menu(menubar, tearoff=0)
@@ -697,7 +839,13 @@ entry_button.place(x=500, y=500, width=100, height=50)
 users_text = Text(main_frame)
 users_text.place(x=0, y=0, width=100, height=500)
 
-username_prompt_func()
+if config[0].rstrip() == 'username:;USERNAME NOT SET':
+    username_prompt_func()
+else:
+    var, value = config[0].split(':;', 2)
+    my_username = value
+
+passwd_prompt_func()
 
 window.update()
 window.minsize(600, 600)
