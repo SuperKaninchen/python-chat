@@ -24,6 +24,7 @@ from tkinter import *
 from tkinter import scrolledtext
 import tkinter
 import time
+import datetime
 
 users = []
 error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
@@ -42,7 +43,6 @@ print(welcome)
 def decode_msg(msg):
     global users
     msg = msg.decode()
-    print(msg)
     if msg == 'Username already taken':
         print('Username already taken on that server')
         return '', 'stop'
@@ -52,28 +52,29 @@ def decode_msg(msg):
 
     if msg == 'LOG ON':
         users.append(usr)
+        users_text['state'] = NORMAL
         users_text.delete('1.0', 'end')
         for user in users:
             users_text.insert('end', user + '\n')
-        print('new users: ' + str(users))
+        users_text['state'] = DISABLED
         return '[SERVER]', usr + ' has logged on'
 
     if msg == 'LOG OFF':
-        print('going to remove: ' + usr)
-        print('users: ' + str(users))
         users.remove(usr)
+        users_text['state'] = NORMAL
         users_text.delete('1.0', 'end')
         for user in users:
             users_text.insert('end', user + '\n')
-        print('new users: ' + str(users))
+        users_text['state'] = DISABLED
         return '[SERVER]', usr + ' has logged off'
 
     if usr == '[userlist]':
-        print('got msg from userlist: ' + msg)
         users.append(msg)
+        users_text['state'] = NORMAL
         users_text.delete('1.0', 'end')
         for user in users:
             users_text.insert('end', user + '\n')
+        users_text['state'] = DISABLED
 
     return usr, msg
 
@@ -86,27 +87,27 @@ def encode_msg(usr, msg):
 
 start_time = time.time()
 timestamp_posted = False
+now = datetime.datetime.now()
 
 
 def print_timestamp():
     global start_time
     global timestamp_posted
     time_since_last = time.time() - start_time
-    print(time_since_last)
-    if time_since_last >= 10:
+    if time_since_last >= 300:
         current_time = time.asctime(time.localtime(time.time()))
-        print('current_time: ' + current_time)
         chat_text['state'] = NORMAL
         if timestamp_posted:
             chat_text.delete('end - 2 lines linestart', 'end')
         chat_text.insert(
             'end',
             '\n' + current_time + '\n',
-            ('timestamp')
+            ('timestamp', 'center')
         )
         chat_text['state'] = DISABLED
         timestamp_posted = True
     start_time = time.time()
+    chat_text.see('end')
 
 
 def send_msg(*args):
@@ -115,15 +116,18 @@ def send_msg(*args):
         print(error_text + 'send_msg: currently not connected')
     else:
         print_timestamp()
+        msg_timestamp = time.strftime("%H:%M")
         msg = entry_text.get('1.0', 'end-1c')
         client_socket.send(encode_msg(my_username, msg))
         print(my_username + ' > ' + msg)
         chat_text['state'] = NORMAL
         chat_text.insert('end', msg, ('right'))
         chat_text.insert('end', ' < ', ('right', 'green'))
-        chat_text.insert('end', my_username + '\n', ('right', 'blue'))
+        chat_text.insert('end', my_username, ('right', 'blue'))
+        chat_text.insert('end', msg_timestamp + '\n', ('timestamp'))
         chat_text['state'] = DISABLED
         entry_text.delete('1.0', 'end')
+        chat_text.see('end')
 
 
 def receive_msg():
@@ -136,17 +140,19 @@ def receive_msg():
                 break
             print_timestamp()
             if user != my_username and user != '[userlist]':
-                msg = user + ' > ' + message
+                msg_timestamp = time.strftime("%H:%M")
                 chat_text['state'] = NORMAL
+                chat_text.insert('end', msg_timestamp, ('timestamp'))
                 chat_text.insert('end', user, ('left', 'blue'))
                 chat_text.insert('end', ' > ', ('left', 'green'))
                 chat_text.insert('end', message + '\n', ('left'))
                 chat_text['state'] = DISABLED
                 timestamp_posted = False
                 print(user + ' > ' + message)
+                chat_text.see('end')
 
         except Exception as e:
-            print(error_text + 'receive_msg: Reading error: '+str(e))
+            print(error_text + 'receive_msg: '+str(e))
             break
 
 
@@ -164,6 +170,9 @@ def custom_connect(addr):
 
 
 def disconnect(*args):
+    users_text['state'] = NORMAL
+    users_text.delete('1.0', 'end')
+    users_text['state'] = DISABLED
     global client_socket
     client_socket.send(encode_msg(my_username, 'LOG OFF'))
     client_socket.shutdown(socket.SHUT_RDWR)
@@ -658,6 +667,10 @@ chat_text.tag_configure(
     justify='left'
 )
 chat_text.tag_configure(
+    'center',
+    justify='center',
+)
+chat_text.tag_configure(
     'green',
     foreground='green'
 )
@@ -668,7 +681,6 @@ chat_text.tag_configure(
 chat_text.tag_config(
     'timestamp',
     foreground='grey',
-    justify='center',
     font='Umpush 10'
 )
 
