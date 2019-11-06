@@ -17,15 +17,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 
-
-
 import socket
 import threading
 import requests
-import netifaces
 import time
 
-#IP, PORT = input("Server address: ").split(":", 2)#"127.0.0.1"
+# IP, PORT = input("Server address: ").split(":", 2)#"127.0.0.1"
 IP = "127.0.0.1"
 PORT = 5000
 
@@ -39,30 +36,36 @@ clients = {}
 users = []
 threads = []
 
+
 def decode_msg(msg):
     msg = msg.decode()
     if "§" in msg:
         usr, msg = msg.split("§", 2)
     else:
         print("decode_msg: No § in msg")
-    if usr == False or msg == False:
-        print("decode_msg: either usr or msg is empty: " + usr + "|" + msg)
+    if not usr or not msg:
+        print(
+            "decode_msg: either usr or msg is empty! usr:%s | msg:%s" %
+            (usr, msg)
+        )
         usr = "broken_usr"
         msg = "broken_msg"
     return usr, msg
+
 
 def encode_msg(usr, msg):
     msg = usr + "§" + msg
     msg = msg.encode()
     return msg
 
-def client_thread(client_socket):
+
+def client_thread(client_socket, client_address):
     while True:
         message = client_socket.recv(4096)
-        if message == None or message == "":
+        if not message:
             client_socket.close()
-            print("Lost connection to: " + client_socket)
-            break;
+            print("Lost connection to %s:%s" % client_address)
+            break
         user, message = decode_msg(message)
         if message == "LOG OFF":
             for sock in sockets_list:
@@ -70,19 +73,20 @@ def client_thread(client_socket):
                     sock.send(encode_msg(user, message))
             client_socket.close()
             print(user + " logged off")
-            break;
-        if user is False:
+            break
+        if not user:
             continue
         print(user + " > " + message)
         if client_socket in sockets_list:
             for sock in sockets_list:
                 if sock != server_socket:
                     sock.send(encode_msg(user, message))
-
         else:
             if message == "LOG ON":
                 if user in users or user == "[SERVER]":
-                    client_socket.send(encode_msg("[SERVER]", "Username already taken"))
+                    client_socket.send(
+                        encode_msg("[SERVER]", "Username already taken")
+                    )
                     client_socket.close()
                     break
                 else:
@@ -92,18 +96,33 @@ def client_thread(client_socket):
                     sockets_list.append(client_socket)
                     clients[client_socket] = user
                     users.append(user)
-                    print("Accepted new connection from {}:{}, username: {}".format(*client_address, user))
-                    client_socket.send(encode_msg("[SERVER]", "Connection accepted"))
+                    print(
+                        "Accepted new connection from %s:%s, username: %s" %
+                        (*client_address, user)
+                    )
+                    client_socket.send(
+                        encode_msg("[SERVER]", "Connection accepted")
+                    )
                     for usr in users:
                         print("userlist sending: " + usr)
-                        sleep(.1)
+                        time.sleep(.1)
                         client_socket.send(encode_msg("[userlist]", usr))
                     continue
             else:
                 continue
 
-while True:
-    client_socket, client_address = server_socket.accept()
-    newthread = threading.Thread(target=client_thread, args=(client_socket,))
-    newthread.start()
-    threads.append(newthread)
+
+def runserver():
+    while True:
+        client_socket, client_address = server_socket.accept()
+        newthread = threading.Thread(
+            target=client_thread,
+            args=(client_socket, client_address,)
+        )
+        newthread.start()
+        threads.append(newthread)
+
+
+if __name__ == '__main__':
+    print('Starting server on %s:%s' % (IP, PORT))
+    runserver()
