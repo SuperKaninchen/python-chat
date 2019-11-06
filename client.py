@@ -32,6 +32,7 @@ default_port = "5000"
 
 def usage():
     print("usage: client.py [dyndns-hostname]")
+    print("example: client.py chat.tdyn.de")
     sys.exit(1)
 
 if len(sys.argv) > 1:
