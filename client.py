@@ -52,6 +52,9 @@ def decode_msg(msg):
 
     if msg == 'LOG ON':
         users.append(usr)
+        users_text.delete('1.0', 'end')
+        for user in users:
+            users_text.insert('end', user + '\n')
         print('new users: ' + str(users))
         return '[SERVER]', usr + ' has logged on'
 
@@ -59,12 +62,18 @@ def decode_msg(msg):
         print('going to remove: ' + usr)
         print('users: ' + str(users))
         users.remove(usr)
+        users_text.delete('1.0', 'end')
+        for user in users:
+            users_text.insert('end', user + '\n')
         print('new users: ' + str(users))
         return '[SERVER]', usr + ' has logged off'
 
     if usr == '[userlist]':
         print('got msg from userlist: ' + msg)
         users.append(msg)
+        users_text.delete('1.0', 'end')
+        for user in users:
+            users_text.insert('end', user + '\n')
 
     return usr, msg
 
@@ -79,15 +88,35 @@ start_time = time.time()
 timestamp_posted = False
 
 
+def print_timestamp():
+    global start_time
+    global timestamp_posted
+    time_since_last = time.time() - start_time
+    print(time_since_last)
+    if time_since_last >= 10:
+        current_time = time.asctime(time.localtime(time.time()))
+        print('current_time: ' + current_time)
+        chat_text['state'] = NORMAL
+        if timestamp_posted:
+            chat_text.delete('end - 2 lines linestart', 'end')
+        chat_text.insert(
+            'end',
+            '\n' + current_time + '\n',
+            ('timestamp')
+        )
+        chat_text['state'] = DISABLED
+        timestamp_posted = True
+    start_time = time.time()
+
+
 def send_msg(*args):
     global connected
-    global timestamp_posted
     if connected is 'none':
         print(error_text + 'send_msg: currently not connected')
     else:
+        print_timestamp()
         msg = entry_text.get('1.0', 'end-1c')
         client_socket.send(encode_msg(my_username, msg))
-        # msg = msg + ' < ' + my_username
         print(my_username + ' > ' + msg)
         chat_text['state'] = NORMAL
         chat_text.insert('end', msg, ('right'))
@@ -95,7 +124,6 @@ def send_msg(*args):
         chat_text.insert('end', my_username + '\n', ('right', 'blue'))
         chat_text['state'] = DISABLED
         entry_text.delete('1.0', 'end')
-        timestamp_posted = False
 
 
 def receive_msg():
@@ -106,23 +134,7 @@ def receive_msg():
             user, message = decode_msg(client_socket.recv(4096))
             if message == 'stop':
                 break
-            time_since_last = time.time() - start_time
-            print(time_since_last)
-            if time_since_last >= 10:
-                current_time = time.asctime(time.localtime(time.time()))
-                print('current_time: ' + current_time)
-                chat_text['state'] = NORMAL
-                if timestamp_posted:
-                    chat_text.delete("end - 2 lines linestart", "end")
-                chat_text.insert(
-                    'end',
-                    '\n' + current_time + '\n',
-                    ('timestamp')
-                )
-                chat_text['state'] = DISABLED
-                timestamp_posted = True
-            else:
-                start_time = time.time()
+            print_timestamp()
             if user != my_username and user != '[userlist]':
                 msg = user + ' > ' + message
                 chat_text['state'] = NORMAL
@@ -669,6 +681,9 @@ entry_button = Button(
     command=send_msg
 )
 entry_button.place(x=500, y=500, width=100, height=50)
+
+users_text = Text(main_frame)
+users_text.place(x=0, y=0, width=100, height=500)
 
 username_prompt_func()
 
