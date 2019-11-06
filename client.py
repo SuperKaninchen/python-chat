@@ -26,6 +26,25 @@ import tkinter
 import time
 import datetime
 
+# we don't have classes here, use default_ip to set it with a dyndns hostname if specified as argv[1]
+default_ip = None
+default_port = "5000"
+
+def usage():
+    print("usage: client.py [dyndns-hostname]")
+    print("example: client.py chat.tdyn.de")
+    sys.exit(1)
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--help" or sys.argv[1] == "-h":
+        usage()
+    server_hostname = sys.argv[1]
+    try:
+        default_ip = socket.gethostbyname(server_hostname)
+    except Exception as e:
+        print("Error on getting IP address for hostname "+server_hostname)
+        sys.exit(1)
+
 users = []
 with open('config') as f:
     config = f.readlines()
@@ -224,7 +243,11 @@ def passwd_prompt_func():
 def custom_connect(addr):
     ip, port = addr.split(':')
     print('Trying to connect ' + my_username + ' to ' + ip + ':' + port)
-    client_socket.connect((ip, int(port)))
+    try:
+        client_socket.connect((ip, int(port)))
+    except Exception as e:
+        print("Error when connecting to %s on port %s" % (ip, port))
+        return
     global connected
     connected = addr
     # passwd_prompt_func()
@@ -250,6 +273,10 @@ def disconnect(*args):
 
 
 def connection_prompt_func():
+    # hook hack to insert server which was given on command line, needs to be fixed when cleaning up code:
+    if default_ip != None:
+        custom_connect("%s:%s" % (default_ip, default_port))
+        return
     connection_prompt = Toplevel()
     ip_var = StringVar()
     port_var = IntVar()
@@ -258,7 +285,8 @@ def connection_prompt_func():
     def connect(*args):
         IP = ip_var.get()
         PORT = port_var.get()
-        custom_connect(IP, PORT)
+        # fixed this call!
+        custom_connect("%s:%s" % (IP, PORT))
         connection_prompt.destroy()
 
     connection_prompt.geometry('600x150')
@@ -852,3 +880,6 @@ window.minsize(600, 600)
 window.resizable(0, 0)
 
 window.mainloop()
+
+# use modeline modelines=1 in vimrc
+# vim: set fileencoding=utf-8 sta sts=4 sw=4 ts=4 ai et:

@@ -21,10 +21,39 @@ import socket
 import threading
 import requests
 import time
+import requests
+import netifaces
+import sys
 
 # IP, PORT = input('Server address: ').split(':', 2)#'127.0.0.1'
 IP = '127.0.0.1'
 PORT = 5000
+
+default_gateway_if = netifaces.gateways()['default'][netifaces.AF_INET][1]
+ip_of_default_gateway_if = netifaces.ifaddresses(default_gateway_if)[netifaces.AF_INET][0]['addr']
+
+def usage():
+    print("usage: server.py [dyndns-register-url]")
+    print("example: server.py http://tdyn.de/MY-PRIVATE-KEY")
+    sys.exit(1)
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--help" or sys.argv[1] == "-h":
+        usage()
+    dyndns_base_url = sys.argv[1]
+    try:
+        dyndns_url = "%s?%s" % (dyndns_base_url, ip_of_default_gateway_if)
+        r = requests.get(dyndns_url)
+        if r.status_code == 200:
+            print("IP# %s successfully registered as DynDNS host" % (ip_of_default_gateway_if))
+            print("IP# returned from DynDNS server: %s" % (r.text))
+            IP = r.text
+        else:
+            print("Failed to register IP %s, status code: %s" % (ip_of_default_gateway_if, r.status_code))
+    except Exception as e:
+        print("Error on DynDNS registration")
+        sys.exit(1)
+
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -173,3 +202,6 @@ def runserver():
 if __name__ == '__main__':
     print('Starting server on %s:%s' % (IP, PORT))
     runserver()
+
+# use modeline modelines=1 in vimrc
+# vim: set fileencoding=utf-8 sta sts=4 sw=4 ts=4 ai et:
