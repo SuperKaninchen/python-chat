@@ -35,6 +35,7 @@ sockets_list = [server_socket]
 clients = {}
 users = []
 threads = []
+error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
 
 
 def decode_msg(msg):
@@ -42,10 +43,14 @@ def decode_msg(msg):
     if ':' in msg:
         usr, msg = msg.split(':', 2)
     else:
-        print('decode_msg: No : in msg')
+        print(
+            error_text
+            + 'decode_msg: No : in msg'
+            )
     if not usr or not msg:
         print(
-            'decode_msg: either usr or msg is empty! usr:%s | msg:%s' %
+            error_text
+            + 'decode_msg: either usr or msg is empty! usr:%s | msg:%s' %
             (usr, msg)
         )
         usr = 'broken_usr'

@@ -23,8 +23,10 @@ from functools import partial
 from tkinter import *
 from tkinter import scrolledtext
 import tkinter
+import time
 
 users = []
+error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
 
 welcome = '''
 Python chat  Copyright (C) 2019  Max Nijenhuis
@@ -73,10 +75,15 @@ def encode_msg(usr, msg):
     return msg
 
 
+start_time = time.time()
+timestamp_posted = False
+
+
 def send_msg(*args):
     global connected
+    global timestamp_posted
     if connected is 'none':
-        print('[ERROR] send_msg: currently not connected')
+        print(error_text + 'send_msg: currently not connected')
     else:
         msg = entry_text.get('1.0', 'end-1c')
         client_socket.send(encode_msg(my_username, msg))
@@ -88,14 +95,34 @@ def send_msg(*args):
         chat_text.insert('end', my_username + '\n', ('right', 'blue'))
         chat_text['state'] = DISABLED
         entry_text.delete('1.0', 'end')
+        timestamp_posted = False
 
 
 def receive_msg():
+    global start_time
+    global timestamp_posted
     while True:
         try:
             user, message = decode_msg(client_socket.recv(4096))
             if message == 'stop':
                 break
+            time_since_last = time.time() - start_time
+            print(time_since_last)
+            if time_since_last >= 10:
+                current_time = time.asctime(time.localtime(time.time()))
+                print('current_time: ' + current_time)
+                chat_text['state'] = NORMAL
+                if timestamp_posted:
+                    chat_text.delete("end - 2 lines linestart", "end")
+                chat_text.insert(
+                    'end',
+                    '\n' + current_time + '\n',
+                    ('timestamp')
+                )
+                chat_text['state'] = DISABLED
+                timestamp_posted = True
+            else:
+                start_time = time.time()
             if user != my_username and user != '[userlist]':
                 msg = user + ' > ' + message
                 chat_text['state'] = NORMAL
@@ -103,10 +130,11 @@ def receive_msg():
                 chat_text.insert('end', ' > ', ('left', 'green'))
                 chat_text.insert('end', message + '\n', ('left'))
                 chat_text['state'] = DISABLED
+                timestamp_posted = False
                 print(user + ' > ' + message)
 
         except Exception as e:
-            print('[ERROR] receive_msg: Reading error: '+str(e))
+            print(error_text + 'receive_msg: Reading error: '+str(e))
             break
 
 
@@ -118,6 +146,8 @@ def custom_connect(addr):
     connected = addr
     client_socket.send(encode_msg(my_username, 'LOG ON'))
     newthread = threading.Thread(target=receive_msg)
+    global userlist
+    userlist = []
     newthread.start()
 
 
@@ -150,6 +180,8 @@ def connection_prompt_func():
         client_socket.send(encode_msg(my_username, 'LOG ON'))
         newthread = threading.Thread(target=receive_msg)
         connection_prompt.destroy()
+        global userlist
+        userlist = []
         newthread.start()
 
     connection_prompt.geometry('600x150')
@@ -237,7 +269,7 @@ def add_bookmark_prompt_func():
             )
             bookmark_prompt.destroy()
         else:
-            print('[ERROR] add_bookmark: not connected to any server')
+            print(error_text + 'add_bookmark: not connected to any server')
 
     bookmark_prompt.geometry('600x150')
     bookmark_prompt.wm_title('New bookmark')
@@ -380,7 +412,7 @@ def edit_bookmark_prompt_func():
             )
             update_bookmarks()
         else:
-            print('[ERROR] add_bookmark: name entry is empty')
+            print(error_text + 'add_bookmark: name entry is empty')
 
     def edit_bookmark(*args):
         global known_servers
@@ -527,9 +559,13 @@ window.minsize(600, window.winfo_reqheight())
 windowHeight = window.winfo_height()
 windowWidth = window.winfo_width()
 
-def in_close():
-    disconnect()
+
+def on_close():
+    if connected != 'none':
+        disconnect()
     window.destroy()
+
+
 window.protocol('WM_DELETE_WINDOW', on_close)
 
 main_frame = Frame(
@@ -601,10 +637,28 @@ chat_text = Text(chat_frame, width=500, height=500, font='Times 20')
 chat_text.place(x=0, y=0, width=500, height=500)
 chat_text['state'] = DISABLED
 
-chat_text.tag_configure('right', justify='right')
-chat_text.tag_configure('left', justify='left')
-chat_text.tag_config('green', foreground='green')
-chat_text.tag_config('blue', foreground='blue')
+chat_text.tag_configure(
+    'right',
+    justify='right'
+)
+chat_text.tag_configure(
+    'left',
+    justify='left'
+)
+chat_text.tag_configure(
+    'green',
+    foreground='green'
+)
+chat_text.tag_configure(
+    'blue',
+    foreground='blue'
+)
+chat_text.tag_config(
+    'timestamp',
+    foreground='grey',
+    justify='center',
+    font='Umpush 10'
+)
 
 entry_text = Text(main_frame)
 entry_text.place(x=100, y=500, width=400, height=50)
