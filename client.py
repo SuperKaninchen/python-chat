@@ -170,7 +170,6 @@ def receive_msg():
                 chat_text.see('end')
 
         except Exception as e:
-            raise
             print(error_text + 'receive_msg: '+str(e))
             break
 
