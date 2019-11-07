@@ -257,6 +257,14 @@ def disconnect(*args):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
+def get_prompt(geometry, title):
+    elem = Toplevel()
+    elem.geometry(geometry)
+    elem.wm_title(title)
+    elem.title(title)
+    return elem
+
+
 def connection_prompt_func():
     connection_prompt = Toplevel()
     ip_var = StringVar()
