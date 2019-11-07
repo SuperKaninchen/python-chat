@@ -26,6 +26,8 @@ import tkinter
 import time
 import datetime
 
+
+HEADER_LENGTH = 10
 users = []
 with open('config') as f:
     config = f.readlines()
@@ -83,9 +85,11 @@ def decode_msg(msg):
 
 
 def encode_msg(usr, msg):
-    msg = usr + ':' + msg
-    msg = msg.encode()
-    return msg
+    usr = usr.rstrip()  # .encode('utf-8')
+    usr_header = f"{len(usr):<{HEADER_LENGTH}}"
+    msg = msg.rstrip()
+    msg_header = f"{len(msg):<{HEADER_LENGTH}}"
+    return usr_header, usr, msg_header, msg
 
 
 start_time = time.time()
@@ -113,17 +117,22 @@ def print_timestamp():
     chat_text.see('end')
 
 
-def send_msg(*args):
+def send_msg(msg):
     global connected
     if connected is 'none':
         print(error_text + 'send_msg: currently not connected')
     else:
         print_timestamp()
         msg_timestamp = time.strftime('%H:%M')
-        msg = entry_text.get('1.0', 'end-1c')
+        if not msg:
+            msg = entry_text.get('1.0', 'end-1c')
         if not msg:
             return
-        client_socket.send(encode_msg(my_username, msg))
+        to_be_sent = encode_msg(my_username, msg)
+        for data in to_be_sent:
+            print('data: ' + data + '|test')
+            client_socket.send(data.encode())
+            time.sleep(.01)
         print(my_username + ' > ' + msg)
         chat_text['state'] = NORMAL
         chat_text.insert('end', msg, ('right'))
@@ -229,7 +238,7 @@ def custom_connect(addr):
     connected = addr
     # passwd_prompt_func()
     msg = 'LOG ON||' + passwd
-    client_socket.send(encode_msg(my_username, msg))
+    send_msg(msg)
     newthread = threading.Thread(target=receive_msg)
     global userlist
     userlist = []
@@ -844,6 +853,11 @@ if config[0].rstrip() == 'username:;USERNAME NOT SET':
 else:
     var, value = config[0].split(':;', 2)
     my_username = value
+print('my_username: ' + my_username)
+username = my_username.encode('utf-8')
+print('username: ' + str(username))
+username_header = f"{len(username):<{HEADER_LENGTH}}".encode('utf-8')
+print('username_header: ' + str(username_header))
 
 passwd_prompt_func()
 
