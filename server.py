@@ -21,11 +21,12 @@ import socket
 import threading
 import requests
 import time
+import json
 
 # IP, PORT = input('Server address: ').split(':', 2)#'127.0.0.1'
 IP = '127.0.0.1'
 PORT = 5000
-HEADER_LENGTH = 10
+
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -49,27 +50,18 @@ failed_login_text = '[SERVER]: Failed login attempt from %s:%s, username: %s'
 
 def decode_msg(msg):
     msg = msg.decode()
-    if ':' in msg:
-        usr, msg = msg.split(':', 2)
-    else:
-        print(
-            error_text
-            + 'decode_msg: No : in msg'
-            )
+    msg_dict = json.loads(msg)
+    usr = msg_dict['usr']
+    msg = msg_dict['msg']
     if not usr or not msg:
-        print(
-            error_text
-            + 'decode_msg: either usr or msg is empty! usr:%s | msg:%s' %
-            (usr, msg)
-        )
-        usr = 'broken_usr'
-        msg = 'broken_msg'
+        return '', ''
     return usr, msg
 
 
 def encode_msg(usr, msg):
-    msg = usr + ':' + msg
-    msg = msg.encode()
+    msg_dict = {'usr': usr, 'msg': msg}
+    print(msg_dict)
+    msg = json.dumps(msg_dict).encode()
     return msg
 
 
@@ -87,30 +79,7 @@ def client_thread(client_socket, client_address):
             client_socket.close()
             print('Lost connection to %s:%s' % client_address)
             break
-        # user, message = decode_msg(message)
-        # username_header, user = user.rstrip().split('//', 2)
-
-        username_header = message.decode().rstrip()  # Decodes username header
-        user = client_socket.recv(4096).decode()  # Receives/decodes username
-        if len(user) != int(username_header):
-            client_socket.close()
-            print('Wrong username length %s:%s' % client_address)
-            print('user: ' + user + '|len(user): ' + str(len(user)))
-            print(
-                'username_header: '
-                + username_header
-                + '|int(username_header): '
-                + str(int(username_header))
-            )
-            break
-        message = client_socket.recv(4096)  # Receives message header
-        message_header = message.decode().rstrip()  # Decodes message header
-        message = client_socket.recv(4096).decode()  # Receives/decodes message
-        if len(message) != int(message_header):
-            client_socket.close()
-            print('Wrong message length %s:%s' % client_address)
-            break
-
+        user, message = decode_msg(message)
         if message == 'LOG OFF':
             for sock in sockets_list:
                 if sock != server_socket:

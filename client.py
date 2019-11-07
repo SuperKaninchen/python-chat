@@ -25,9 +25,8 @@ from tkinter import scrolledtext
 import tkinter
 import time
 import datetime
+import json
 
-
-HEADER_LENGTH = 10
 users = []
 with open('config') as f:
     config = f.readlines()
@@ -35,10 +34,10 @@ error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
 passwd = ''
 
 welcome = '''
-Python chat  Copyright (C) 2019  Max Nijenhuis
+Python chat  Copyright (C) 2019  Max Nijenhuis😀
 This program comes with ABSOLUTELY NO WARRANTY
 This is free software, and you are welcome to redistribute it
-under certain conditions
+under certain conditions🤮
 click on Help -> License for details.
 '''
 
@@ -48,12 +47,15 @@ print(welcome)
 def decode_msg(msg):
     global users
     msg = msg.decode()
+    msg_dict = json.loads(msg)
+    usr = msg_dict['usr']
+    msg = msg_dict['msg']
+    if not usr or not msg:
+        return '', ''
     if msg == 'Username already taken':
         print('Username already taken on that server')
         return '', 'stop'
         disconnect()
-
-    usr, msg = msg.split(':', 2)
 
     if msg == 'LOG ON':
         users.append(usr)
@@ -85,11 +87,10 @@ def decode_msg(msg):
 
 
 def encode_msg(usr, msg):
-    usr = usr.rstrip()  # .encode('utf-8')
-    usr_header = f"{len(usr):<{HEADER_LENGTH}}"
-    msg = msg.rstrip()
-    msg_header = f"{len(msg):<{HEADER_LENGTH}}"
-    return usr_header, usr, msg_header, msg
+    msg_dict = {'usr': usr, 'msg': msg}
+    print(msg_dict)
+    msg = json.dumps(msg_dict).encode()
+    return msg
 
 
 start_time = time.time()
@@ -117,31 +118,17 @@ def print_timestamp():
     chat_text.see('end')
 
 
-def send_msg(msg):
+def send_msg(*args):
     global connected
     if connected is 'none':
         print(error_text + 'send_msg: currently not connected')
     else:
         print_timestamp()
-        msg_timestamp = time.strftime('%H:%M')
-        if not msg:
-            msg = entry_text.get('1.0', 'end-1c')
+        msg = entry_text.get('1.0', 'end-1c')
         if not msg:
             return
-        to_be_sent = encode_msg(my_username, msg)
-        for data in to_be_sent:
-            print('data: ' + data + '|test')
-            client_socket.send(data.encode())
-            time.sleep(.01)
-        print(my_username + ' > ' + msg)
-        chat_text['state'] = NORMAL
-        chat_text.insert('end', msg, ('right'))
-        chat_text.insert('end', ' < ', ('right', 'green'))
-        chat_text.insert('end', my_username, ('right', 'blue'))
-        chat_text.insert('end', msg_timestamp + '\n', ('timestamp'))
-        chat_text['state'] = DISABLED
+        client_socket.send(encode_msg(my_username, msg))
         entry_text.delete('1.0', 'end')
-        chat_text.see('end')
 
 
 def receive_msg():
@@ -152,11 +139,23 @@ def receive_msg():
             user, message = decode_msg(client_socket.recv(4096))
             if message == 'stop':
                 break
+            if user == '[userlist]':
+                continue
             print_timestamp()
-            if user != my_username and user != '[userlist]':
-                msg_timestamp = time.strftime('%H:%M')
+            msg_timestamp = time.strftime('%H:%M')
+            if user == my_username:
                 chat_text['state'] = NORMAL
-                chat_text.insert('end', msg_timestamp, ('timestamp'))
+                chat_text.insert('end', message, ('right'))
+                chat_text.insert('end', ' < ', ('right', 'green'))
+                chat_text.insert('end', my_username, ('right', 'blue'))
+                chat_text.insert('end', msg_timestamp + '\n', ('timestamp', 'right'))
+                chat_text['state'] = DISABLED
+                timestamp_posted = False
+                print(user + ' > ' + message)
+                chat_text.see('end')
+            else:
+                chat_text['state'] = NORMAL
+                chat_text.insert('end', msg_timestamp, ('timestamp', 'left'))
                 chat_text.insert('end', user, ('left', 'blue'))
                 chat_text.insert('end', ' > ', ('left', 'green'))
                 chat_text.insert('end', message + '\n', ('left'))
@@ -238,7 +237,7 @@ def custom_connect(addr):
     connected = addr
     # passwd_prompt_func()
     msg = 'LOG ON||' + passwd
-    send_msg(msg)
+    client_socket.send(encode_msg(my_username, msg))
     newthread = threading.Thread(target=receive_msg)
     global userlist
     userlist = []
@@ -574,12 +573,12 @@ def username_prompt_func():
         global my_username
 
         if connected == 'none':
-            my_username = username_entry.get()
+            my_username = username_entry.get().rstrip()
             username_prompt.destroy()
         else:
             old_addr = connected
             disconnect()
-            my_username = username_entry.get()
+            my_username = username_entry.get().rstrip()
             custom_connect(old_addr)
             username_prompt.destroy()
 
@@ -853,11 +852,6 @@ if config[0].rstrip() == 'username:;USERNAME NOT SET':
 else:
     var, value = config[0].split(':;', 2)
     my_username = value
-print('my_username: ' + my_username)
-username = my_username.encode('utf-8')
-print('username: ' + str(username))
-username_header = f"{len(username):<{HEADER_LENGTH}}".encode('utf-8')
-print('username_header: ' + str(username_header))
 
 passwd_prompt_func()
 
