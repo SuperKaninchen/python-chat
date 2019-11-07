@@ -1,0 +1,39 @@
+commit 21e2a58c0fd4f08a986889ff67a931953320bacf
+Author: tx-odroid <56743178+tx-odroid@users.noreply.github.com>
+Date:   Sun Oct 20 11:15:06 2019 +0200
+
+    TFT_eSPI User_Setup.h changes for ODROID GO display
+
+diff --git a/User_Setup.h b/User_Setup.h
+index 1f70a3f..78c1d72 100644
+--- a/User_Setup.h
++++ b/User_Setup.h
+@@ -125,9 +125,9 @@
+ // ###### EDIT THE PIN NUMBERS IN THE LINES FOLLOWING TO SUIT YOUR ESP8266 SETUP ######
+ 
+ // For NodeMCU - use pin numbers in the form PIN_Dx where Dx is the NodeMCU pin designation
+-#define TFT_CS   PIN_D8  // Chip select control pin D8
+-#define TFT_DC   PIN_D3  // Data Command control pin
+-#define TFT_RST  PIN_D4  // Reset pin (could connect to NodeMCU RST, see next line)
++//#define TFT_CS   PIN_D8  // Chip select control pin D8
++//#define TFT_DC   PIN_D3  // Data Command control pin
++//#define TFT_RST  PIN_D4  // Reset pin (could connect to NodeMCU RST, see next line)
+ //#define TFT_RST  -1    // Set TFT_RST to -1 if the display RESET is connected to NodeMCU RST or 3.3V
+ 
+ //#define TFT_BL PIN_D1  // LED back-light (only for ST7789 with backlight control pin)
+@@ -168,6 +168,15 @@
+ 
+ //#define TFT_BL   32  // LED back-light (only for ST7789 with backlight control pin)
+ 
++// ODROID GO
++#define TFT_MISO 19 // GPIO 19 is not defined in User_Setup_Select.h
++#define TFT_MOSI 23 // GPIO 23 is not defined in User_Setup_Select.h
++#define TFT_SCLK 18 // GPIO 18 is not defined in User_Setup_Select.h
++#define TFT_CS   5  // Chip select control pin, GPIO 5 is PIN_D1 in User_Setup_Select.h
++#define TFT_DC    21  // Data Command control pin, GPIO 21 is not defined in User_Setup_Select.h
++#define TFT_RST  -1  // Reset pin (could connect to RST pin), set TFT_RST to -1 if display RESET is connected to ESP32 board RST
++#define TFT_BL   14  // LED back-light (only for ST7789 with backlight control pin), GPIO 14 is PIN_D5 in User_Setup_Select.h
++
+ //#define TOUCH_CS 21     // Chip select pin (T_CS) of touch screen
+ 
+ //#define TFT_WR 22    // Write strobe for modified Raspberry Pi TFT only
