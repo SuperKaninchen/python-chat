@@ -22,6 +22,7 @@ import threading
 import time
 import json
 import os
+import message_parser as mp
 
 
 class ChatServer(object):
@@ -96,20 +97,9 @@ class ChatServer(object):
                 line = user + ':;' + password
                 userfile.write(line + '\n')
 
-    @staticmethod
-    def decode_msg(msg):
-        msg = msg.decode()
-        msg_dict = json.loads(msg)
-        usr = msg_dict.get('usr')
-        msg = msg_dict.get('msg')
-        return usr, msg
-
-    @staticmethod
-    def encode_msg(usr, msg):
-        msg_dict = {'usr': usr, 'msg': msg}
-        print(msg_dict)
-        msg = json.dumps(msg_dict).encode()
-        return msg
+    def send_to_one(self, sock, usr, msg):
+        msg = mp.encode_msg(usr, msg, '')
+        sock.send(msg)
 
     def client_thread(self, client_socket, client_address):
         '''
@@ -124,7 +114,7 @@ class ChatServer(object):
                     (self.error_text, *client_address)
                 )
                 break
-            user, message = self.decode_msg(message)
+            user, message, p = mp.decode_msg(message)
 
             # invalid message
             if not user or not message:
@@ -139,9 +129,7 @@ class ChatServer(object):
 
             # tell message to clients
             for c_socket in self.clients:
-                # ...remember to cut off password. better solution would be
-                # to send pw in separate field - not in message
-                c_socket.send(self.encode_msg(user, message.split('|')[0]))
+                self.send_to_one(c_socket, user, message)
 
             # check fo login / logoff
             if message == 'LOG OFF':
@@ -152,12 +140,12 @@ class ChatServer(object):
                 break
             elif 'LOG ON' in message and client_socket not in self.clients:
 
-                logon, given_passwd = message.split('||', 2)
+                given_passwd = p
 
                 # check username
                 if user in self.cur_users or user == '[SERVER]':
-                    client_socket.send(
-                        self.encode_msg('[SERVER]', 'Username already taken')
+                    self.send_to_one(
+                        client_socket, '[SERVER]', 'Username already taken'
                     )
                     break
 
@@ -170,8 +158,8 @@ class ChatServer(object):
 
                     # abort on wrong password
                     if given_passwd != required_passwd:
-                        client_socket.send(
-                            self.encode_msg('[SERVER]', 'WRONG PASSWORD')
+                        self.send_to_one(
+                            client_socket, '[SERVER]', 'WRONG PASSWORD'
                         )
                         print(self.failed_login_text % (*client_address, user))
                         break
@@ -188,14 +176,14 @@ class ChatServer(object):
                     'Accepted new connection from %s:%s, username: %s' %
                     (*client_address, user)
                 )
-                client_socket.send(
-                    self.encode_msg('[SERVER]', 'Connection accepted')
+                self.send_to_one(
+                    client_socket, '[SERVER]', 'Connection accepted'
                 )
                 for user in self.cur_users:
                     print('userlist sending: ' + user)
                     time.sleep(.1)
-                    client_socket.send(
-                        self.encode_msg('[userlist]', user)
+                    self.send_to_one(
+                        client_socket, '[userlist]', user
                     )
         # main loop finished - close socket
         client_socket.close()

@@ -20,12 +20,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import socket
 import threading
 from functools import partial
-from tkinter import *
-from tkinter import scrolledtext
 import tkinter
+from tkinter import *
 import time
 import datetime
-import json
+import message_parser as mp
 
 users = []
 with open('config') as f:
@@ -34,66 +33,14 @@ error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
 passwd = ''
 
 welcome = '''
-Python chat  Copyright (C) 2019  Max Nijenhuis😀
+Python chat  Copyright (C) 2019  Max Nijenhuis🦄
 This program comes with ABSOLUTELY NO WARRANTY
 This is free software, and you are welcome to redistribute it
-under certain conditions🤮
+under certain conditions
 click on Help -> License for details.
 '''
 
 print(welcome)
-
-
-def decode_msg(msg):
-    global users
-    msg = msg.decode()
-    try:
-        msg_dict = json.loads(msg)
-    except json.decoder.JSONDecodeError:  # invalid json, cant't build msg_dict
-        msg_dict = {}
-    usr = msg_dict.get('usr')
-    msg = msg_dict.get('msg')
-    if not usr or not msg:
-        return '', ''
-    if msg == 'Username already taken':
-        print('Username already taken on that server')
-        return '', 'stop'
-        disconnect()
-
-    if msg == 'LOG ON':
-        users.append(usr)
-        users_text['state'] = NORMAL
-        users_text.delete('1.0', 'end')
-        for user in users:
-            users_text.insert('end', user + '\n')
-        users_text['state'] = DISABLED
-        return '[SERVER]', usr + ' has logged on'
-
-    if msg == 'LOG OFF':
-        users.remove(usr)
-        users_text['state'] = NORMAL
-        users_text.delete('1.0', 'end')
-        for user in users:
-            users_text.insert('end', user + '\n')
-        users_text['state'] = DISABLED
-        return '[SERVER]', usr + ' has logged off'
-
-    if usr == '[userlist]':
-        users.append(msg)
-        users_text['state'] = NORMAL
-        users_text.delete('1.0', 'end')
-        for user in users:
-            users_text.insert('end', user + '\n')
-        users_text['state'] = DISABLED
-
-    return usr, msg
-
-
-def encode_msg(usr, msg):
-    msg_dict = {'usr': usr, 'msg': msg}
-    print(msg_dict)
-    msg = json.dumps(msg_dict).encode()
-    return msg
 
 
 start_time = time.time()
@@ -121,6 +68,38 @@ def print_timestamp():
     chat_text.see('end')
 
 
+def update_users(usr, add):
+    if add:
+        users.append(usr)
+    else:
+        users.remove(usr)
+    users_text['state'] = NORMAL
+    users_text.delete('1.0', 'end')
+    for user in users:
+        users_text.insert('end', user + '\n')
+    users_text['state'] = DISABLED
+
+
+def eval_msg(usr, msg):
+    global users
+    if msg == 'Username already taken':
+        print('Username already taken on that server')
+        return '', 'stop'
+        disconnect()
+    if msg == 'LOG ON':
+        update_users(usr, True)
+        return '[SERVER]', usr + ' has logged on'
+
+    if msg == 'LOG OFF':
+        update_users(usr, False)
+        return '[SERVER]', usr + ' has logged off'
+
+    if usr == '[userlist]':
+        update_users(msg, True)
+
+    return usr, msg
+
+
 def send_msg(*args):
     global connected
     if connected is None:
@@ -130,7 +109,7 @@ def send_msg(*args):
         msg = entry_text.get('1.0', 'end-1c')
         if not msg:
             return
-        client_socket.send(encode_msg(my_username, msg))
+        client_socket.send(mp.encode_msg(my_username, msg, passwd))
         entry_text.delete('1.0', 'end')
 
 
@@ -141,7 +120,10 @@ def receive_msg():
         if connected is None:
             break
         try:
-            user, message = decode_msg(client_socket.recv(4096))
+            user, message, p = mp.decode_msg(client_socket.recv(4096))
+            if not user or not message:
+                break
+            user, message = eval_msg(user, message)
             if message == 'stop':
                 break
             if user == '[userlist]':
@@ -238,8 +220,8 @@ def custom_connect(addr):
     global connected
     connected = addr
     # passwd_prompt_func()
-    msg = 'LOG ON||' + passwd
-    client_socket.send(encode_msg(my_username, msg))
+    msg = 'LOG ON'
+    client_socket.send(mp.encode_msg(my_username, msg, passwd))
     global newthread
     newthread = threading.Thread(target=receive_msg)
     global userlist
@@ -252,7 +234,7 @@ def disconnect(*args):
     users_text.delete('1.0', 'end')
     users_text['state'] = DISABLED
     global client_socket
-    client_socket.send(encode_msg(my_username, 'LOG OFF'))
+    client_socket.send(mp.encode_msg(my_username, 'LOG OFF', passwd))
     client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
     global connected
@@ -782,7 +764,7 @@ server_menu = Menu(menubar, tearoff=0)
 server_menu.add_command(label='Connect', command=connection_prompt_func)
 server_menu.add_command(label='Disconnect', command=disconnect)
 server_menu.add_separator()
-server_menu.add_command(label='Exit', command=window.quit)
+server_menu.add_command(label='Exit', command=on_close)
 menubar.add_cascade(label='Server', menu=server_menu)
 
 edit_menu = Menu(menubar, tearoff=0)
