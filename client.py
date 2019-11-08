@@ -47,9 +47,12 @@ print(welcome)
 def decode_msg(msg):
     global users
     msg = msg.decode()
-    msg_dict = json.loads(msg)
-    usr = msg_dict['usr']
-    msg = msg_dict['msg']
+    try:
+        msg_dict = json.loads(msg)
+    except json.decoder.JSONDecodeError:  # invalid json, cant't build msg_dict
+        msg_dict = {}
+    usr = msg_dict.get('usr')
+    msg = msg_dict.get('msg')
     if not usr or not msg:
         return '', ''
     if msg == 'Username already taken':
@@ -120,7 +123,7 @@ def print_timestamp():
 
 def send_msg(*args):
     global connected
-    if connected is 'none':
+    if connected is None:
         print(error_text + 'send_msg: currently not connected')
     else:
         print_timestamp()
@@ -135,6 +138,8 @@ def receive_msg():
     global start_time
     global timestamp_posted
     while True:
+        if connected is None:
+            break
         try:
             user, message = decode_msg(client_socket.recv(4096))
             if message == 'stop':
@@ -183,9 +188,6 @@ def passwd_prompt_func():
         global passwd
         passwd = passwd_entry.get()
         passwd_prompt.destroy()
-
-    def on_close():
-        pass
 
     passwd_entry = Entry(passwd_prompt)
     passwd_button = Button(
@@ -238,6 +240,7 @@ def custom_connect(addr):
     # passwd_prompt_func()
     msg = 'LOG ON||' + passwd
     client_socket.send(encode_msg(my_username, msg))
+    global newthread
     newthread = threading.Thread(target=receive_msg)
     global userlist
     userlist = []
@@ -253,7 +256,7 @@ def disconnect(*args):
     client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
     global connected
-    connected = 'none'
+    connected = None
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
@@ -580,7 +583,7 @@ def username_prompt_func():
     def confirm_name(*args):
         global my_username
 
-        if connected == 'none':
+        if connected is None:
             my_username = username_entry.get().rstrip()
             username_prompt.destroy()
         else:
@@ -661,7 +664,7 @@ def config_prompt_func():
         global my_username
         global config
 
-        if connected == 'none':
+        if connected is None:
             my_username = username_entry.get()
         else:
             old_addr = connected
@@ -721,7 +724,8 @@ IP = '1.2.3.4'
 PORT = 1234
 my_username = 'guest'
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-connected = 'none'
+connected = None
+newthread = None
 
 with open('servers') as servers_file:
     known_servers = servers_file.readlines()
@@ -733,11 +737,12 @@ windowWidth = window.winfo_width()
 
 
 def on_close():
-    if connected != 'none':
+    if connected is not None:
         try:
             disconnect()
         except BrokenPipeError:
             print(error_text + 'on_close: Broken pipe error')
+    newthread.join()
     window.destroy()
 
 
