@@ -9,6 +9,7 @@ def encode_msg(usr, msg, pwd):
 
 def decode_msg(msg):
     msg = msg.decode()
+    # temp
     msg_dict = json.loads(msg)
     usr = msg_dict.get('usr')
     msg = msg_dict.get('msg')

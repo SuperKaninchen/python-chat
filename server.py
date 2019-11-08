@@ -71,7 +71,7 @@ class ChatServer(object):
             )
             newthread.start()
             self.threads.append(newthread)
-
+            # temp
     def check_users(self):
         '''
         check for known users in users file. create users file if not found
