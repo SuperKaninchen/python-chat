@@ -34,6 +34,8 @@ class ChatServer(object):
 
     # these are class variables shared by all instances
     error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
+    log_text = '{%s} %s'
+    print_text = '\033[36m{%s} \033[m%s'
     failed_login_text = '[SERVER]: Failed login attempt from %s:%s, username: %s'
 
     def __init__(self, ip='127.0.0.1', port=5000, users_path='users'):
@@ -101,6 +103,14 @@ class ChatServer(object):
         msg = mp.encode_msg(usr, msg, '')
         sock.send(msg)
 
+    def add_log(self, msg):
+        current_time = time.strftime('%H:%M:%S, %a %b%e %Y')  # time.asctime(time.localtime(time.time()))
+        log_string = self.log_text % (current_time, msg)
+        with open('server_log', 'a') as f:
+            f.write(log_string + '\n')
+        log_string = self.print_text % (current_time, msg)
+        print(log_string)
+
     def client_thread(self, client_socket, client_address):
         '''
         Worker thread handling client connection
@@ -109,7 +119,7 @@ class ChatServer(object):
             message = client_socket.recv(4096)
             if not message:
                 client_socket.close()
-                print(
+                self.add_log(
                     '%s Lost connection to %s:%s' %
                     (self.error_text, *client_address)
                 )
@@ -118,78 +128,74 @@ class ChatServer(object):
 
             # invalid message
             if not user or not message:
-                print(
+                self.add_log(
                     '%s Invalid message from %s:%s' %
                     (self.error_text, *client_address)
                 )
                 break  # or continue?
 
-            # print to console for debugging
-            print(user + ' > ' + message)
+            self.add_log(user + ' > ' + message)
 
-            # tell message to clients
-            for c_socket in self.clients:
-                self.send_to_one(c_socket, user, message)
-
-            # check fo login / logoff
+            # check for login / logoff
             if message == 'LOG OFF':
                 client_socket.close()
-                print(user + ' logged off')
+                self.add_log(user + ' logged off')
                 self.clients.pop(client_socket)
                 self.cur_users.pop(user)
                 break
-            elif 'LOG ON' in message and client_socket not in self.clients:
+            given_passwd = p
+            # check username
+            if user in self.cur_users or user == '[SERVER]':
+                self.send_to_one(
+                    client_socket, '[SERVER]', 'Username already taken'
+                )
+                break
 
-                given_passwd = p
+            # check for known/unknown user, do pw check on known ones
+            if user in self.known_users:
 
-                # check username
-                if user in self.cur_users or user == '[SERVER]':
+                required_passwd = self.known_users[user]
+
+                # abort on wrong password
+                if given_passwd != required_passwd:
                     self.send_to_one(
-                        client_socket, '[SERVER]', 'Username already taken'
+                        client_socket, '[SERVER]', 'WRONG PASSWORD'
+                    )
+                    self.add_log(
+                        self.failed_login_text %
+                        (*client_address, user)
                     )
                     break
+            else:  # unknown user
+                self.known_users[user] = given_passwd
+                self.update_users_file()
 
-                # check for known/unknown user, do pw check on known ones
-                if user in self.known_users:
+            # memorize new user
+            self.cur_users[user] = given_passwd
 
-                    required_passwd = self.known_users[user]
-                    print('req' + required_passwd)
-                    print('giv' + given_passwd)
-
-                    # abort on wrong password
-                    if given_passwd != required_passwd:
-                        self.send_to_one(
-                            client_socket, '[SERVER]', 'WRONG PASSWORD'
-                        )
-                        print(self.failed_login_text % (*client_address, user))
-                        break
-                else:  # unknown user
-                    self.known_users[user] = given_passwd
-                    self.update_users_file()
-
-                # memorize new user
-                self.cur_users[user] = given_passwd
-
-                # tell client everything's fine and send user list
-                self.clients[client_socket] = client_address
-                print(
-                    'Accepted new connection from %s:%s, username: %s' %
-                    (*client_address, user)
-                )
+            # tell client everything's fine and send user list
+            self.clients[client_socket] = client_address
+            self.add_log(
+                'Accepted new connection from %s:%s, username: %s' %
+                (*client_address, user)
+            )
+            self.send_to_one(
+                client_socket, '[SERVER]', 'Connection accepted'
+            )
+            for user in self.cur_users:
                 self.send_to_one(
-                    client_socket, '[SERVER]', 'Connection accepted'
+                    client_socket, '[userlist]', user
                 )
-                for user in self.cur_users:
-                    print('userlist sending: ' + user)
-                    time.sleep(.1)
-                    self.send_to_one(
-                        client_socket, '[userlist]', user
-                    )
+                print('sent %s to %s' % (user, client_socket))
+                time.sleep(.1)
+            # tell message to clients
+            for c_socket in self.clients:
+                self.send_to_one(c_socket, user, message)
         # main loop finished - close socket
         client_socket.close()
 
 
 if __name__ == '__main__':
     server = ChatServer()
-    print('Starting server on %s:%s' % (server.ip, server.port))
+    server.add_log('Starting server on %s:%s' % (server.ip, server.port))
     server.run()

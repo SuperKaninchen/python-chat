@@ -25,6 +25,7 @@ from tkinter import *
 import time
 import datetime
 import message_parser as mp
+import traceback
 
 users = []
 with open('config') as f:
@@ -95,7 +96,7 @@ def eval_msg(usr, msg):
         return '[SERVER]', usr + ' has logged off'
 
     if usr == '[userlist]':
-        update_users(msg, True)
+        update_users(usr, True)
 
     return usr, msg
 
@@ -153,6 +154,8 @@ def receive_msg():
 
         except Exception as e:
             print(error_text + 'receive_msg: '+str(e))
+            tb = traceback.format_exc()
+            print(tb)
             break
 
 
@@ -235,7 +238,6 @@ def disconnect(*args):
     users_text['state'] = DISABLED
     global client_socket
     client_socket.send(mp.encode_msg(my_username, 'LOG OFF', passwd))
-    client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
     global connected
     connected = None
