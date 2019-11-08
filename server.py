@@ -1,4 +1,4 @@
-"""
+'''
 Python chat using sockets and TKinter
 Copyright (C) 2019  Max Nijenhuis
 
@@ -14,115 +14,182 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
+'''
 
 
 import socket
 import threading
-import requests
 import time
-
-# IP, PORT = input("Server address: ").split(":", 2)#"127.0.0.1"
-IP = "127.0.0.1"
-PORT = 5000
-
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server_socket.bind((IP, int(PORT)))
-server_socket.listen()
-
-sockets_list = [server_socket]
-clients = {}
-users = []
-threads = []
+import json
+import os
+import message_parser as mp
 
 
-def decode_msg(msg):
-    msg = msg.decode()
-    if "§" in msg:
-        usr, msg = msg.split("§", 2)
-    else:
-        print("decode_msg: No § in msg")
-    if not usr or not msg:
-        print(
-            "decode_msg: either usr or msg is empty! usr:%s | msg:%s" %
-            (usr, msg)
-        )
-        usr = "broken_usr"
-        msg = "broken_msg"
-    return usr, msg
+class ChatServer(object):
+    '''
+    ChatServer is the server backend class used in python-chat
+    It keeps all state variables of the server and handles each client in a
+    separate thread
+    '''
 
+    # these are class variables shared by all instances
+    error_text = '\033[31;1m' + '[ERROR] ' + '\033[m'
+    failed_login_text = '[SERVER]: Failed login attempt from %s:%s, username: %s'
 
-def encode_msg(usr, msg):
-    msg = usr + "§" + msg
-    msg = msg.encode()
-    return msg
+    def __init__(self, ip='127.0.0.1', port=5000, users_path='users'):
+        '''
+        populate instance with attributes
+        '''
 
+        self.ip = ip
+        self.port = port
+        self.users_path = users_path
 
-def client_thread(client_socket, client_address):
-    while True:
-        message = client_socket.recv(4096)
-        if not message:
-            client_socket.close()
-            print("Lost connection to %s:%s" % client_address)
-            break
-        user, message = decode_msg(message)
-        if message == "LOG OFF":
-            for sock in sockets_list:
-                if sock != server_socket:
-                    sock.send(encode_msg(user, message))
-            client_socket.close()
-            print(user + " logged off")
-            break
-        if not user:
-            continue
-        print(user + " > " + message)
-        if client_socket in sockets_list:
-            for sock in sockets_list:
-                if sock != server_socket:
-                    sock.send(encode_msg(user, message))
-        else:
-            if message == "LOG ON":
-                if user in users or user == "[SERVER]":
-                    client_socket.send(
-                        encode_msg("[SERVER]", "Username already taken")
+        self.clients = {}
+        self.threads = []
+
+        self.cur_users = {}
+        self.known_users = {}
+
+    def run(self):
+        '''
+        Check users file, prepare socket and then run server main loop:
+        Accept new connections and spawn handling thread
+        '''
+        self.check_users()
+
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.ip, self.port))
+        self.server_socket.listen()
+
+        while True:
+            client_socket, client_address = self.server_socket.accept()
+            newthread = threading.Thread(
+                target=self.client_thread,
+                args=(client_socket, client_address,)
+            )
+            newthread.start()
+            self.threads.append(newthread)
+
+    def check_users(self):
+        '''
+        check for known users in users file. create users file if not found
+        '''
+
+        if not os.path.exists(self.users_path) and \
+           not os.path.isfile(self.users_path):
+            userfile = open(self.users_path, 'w')
+            userfile.close()
+            return
+
+        with open(self.users_path) as userfile:
+            for line in userfile.readlines():
+                known_user, known_passwd = line.split(':;', 2)
+                self.known_users[known_user] = known_passwd.strip()
+
+    def update_users_file(self):
+        '''
+        Called when new user logs in
+        '''
+        with open(self.users_path, 'w') as userfile:
+            for user, password in self.known_users.items():
+                line = user + ':;' + password
+                userfile.write(line + '\n')
+
+    def send_to_one(self, sock, usr, msg):
+        msg = mp.encode_msg(usr, msg, '')
+        sock.send(msg)
+
+    def client_thread(self, client_socket, client_address):
+        '''
+        Worker thread handling client connection
+        '''
+        while True:
+            message = client_socket.recv(4096)
+            if not message:
+                client_socket.close()
+                print(
+                    '%s Lost connection to %s:%s' %
+                    (self.error_text, *client_address)
+                )
+                break
+            user, message, p = mp.decode_msg(message)
+
+            # invalid message
+            if not user or not message:
+                print(
+                    '%s Invalid message from %s:%s' %
+                    (self.error_text, *client_address)
+                )
+                break  # or continue?
+
+            # print to console for debugging
+            print(user + ' > ' + message)
+
+            # tell message to clients
+            for c_socket in self.clients:
+                self.send_to_one(c_socket, user, message)
+
+            # check fo login / logoff
+            if message == 'LOG OFF':
+                client_socket.close()
+                print(user + ' logged off')
+                self.clients.pop(client_socket)
+                self.cur_users.pop(user)
+                break
+            elif 'LOG ON' in message and client_socket not in self.clients:
+
+                given_passwd = p
+
+                # check username
+                if user in self.cur_users or user == '[SERVER]':
+                    self.send_to_one(
+                        client_socket, '[SERVER]', 'Username already taken'
                     )
-                    client_socket.close()
                     break
-                else:
-                    for sock in sockets_list:
-                        if sock != server_socket:
-                            sock.send(encode_msg(user, message))
-                    sockets_list.append(client_socket)
-                    clients[client_socket] = user
-                    users.append(user)
-                    print(
-                        "Accepted new connection from %s:%s, username: %s" %
-                        (*client_address, user)
-                    )
-                    client_socket.send(
-                        encode_msg("[SERVER]", "Connection accepted")
-                    )
-                    for usr in users:
-                        print("userlist sending: " + usr)
-                        time.sleep(.1)
-                        client_socket.send(encode_msg("[userlist]", usr))
-                    continue
-            else:
-                continue
 
+                # check for known/unknown user, do pw check on known ones
+                if user in self.known_users:
 
-def runserver():
-    while True:
-        client_socket, client_address = server_socket.accept()
-        newthread = threading.Thread(
-            target=client_thread,
-            args=(client_socket, client_address,)
-        )
-        newthread.start()
-        threads.append(newthread)
+                    required_passwd = self.known_users[user]
+                    print('req' + required_passwd)
+                    print('giv' + given_passwd)
+
+                    # abort on wrong password
+                    if given_passwd != required_passwd:
+                        self.send_to_one(
+                            client_socket, '[SERVER]', 'WRONG PASSWORD'
+                        )
+                        print(self.failed_login_text % (*client_address, user))
+                        break
+                else:  # unknown user
+                    self.known_users[user] = given_passwd
+                    self.update_users_file()
+
+                # memorize new user
+                self.cur_users[user] = given_passwd
+
+                # tell client everything's fine and send user list
+                self.clients[client_socket] = client_address
+                print(
+                    'Accepted new connection from %s:%s, username: %s' %
+                    (*client_address, user)
+                )
+                self.send_to_one(
+                    client_socket, '[SERVER]', 'Connection accepted'
+                )
+                for user in self.cur_users:
+                    print('userlist sending: ' + user)
+                    time.sleep(.1)
+                    self.send_to_one(
+                        client_socket, '[userlist]', user
+                    )
+        # main loop finished - close socket
+        client_socket.close()
 
 
 if __name__ == '__main__':
-    print('Starting server on %s:%s' % (IP, PORT))
-    runserver()
+    server = ChatServer()
+    print('Starting server on %s:%s' % (server.ip, server.port))
+    server.run()
