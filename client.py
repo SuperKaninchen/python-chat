@@ -87,7 +87,7 @@ def eval_msg(usr, msg):
         print('Username already taken on that server')
         return '', 'stop'
         disconnect()
-    if msg == 'LOG ON':
+    if msg == 'LOG ON' and usr != my_username:
         update_users(usr, True)
         return '[SERVER]', usr + ' has logged on'
 
@@ -96,7 +96,7 @@ def eval_msg(usr, msg):
         return '[SERVER]', usr + ' has logged off'
 
     if usr == '[userlist]':
-        update_users(usr, True)
+        update_users(msg, True)
 
     return usr, msg
 

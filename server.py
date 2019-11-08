@@ -145,11 +145,12 @@ class ChatServer(object):
                 break
             given_passwd = p
             # check username
-            if user in self.cur_users or user == '[SERVER]':
-                self.send_to_one(
-                    client_socket, '[SERVER]', 'Username already taken'
-                )
-                break
+            if message == 'LOG ON':
+                if user in self.cur_users or user == '[SERVER]':
+                    self.send_to_one(
+                        client_socket, '[SERVER]', 'Username already taken'
+                    )
+                    break
 
             # check for known/unknown user, do pw check on known ones
             if user in self.known_users:
@@ -171,23 +172,24 @@ class ChatServer(object):
                 self.update_users_file()
 
             # memorize new user
-            self.cur_users[user] = given_passwd
+            # self.cur_users[user] = given_passwd
 
             # tell client everything's fine and send user list
             self.clients[client_socket] = client_address
-            self.add_log(
-                'Accepted new connection from %s:%s, username: %s' %
-                (*client_address, user)
-            )
-            self.send_to_one(
-                client_socket, '[SERVER]', 'Connection accepted'
-            )
-            for user in self.cur_users:
-                self.send_to_one(
-                    client_socket, '[userlist]', user
+            if message == 'LOG ON':
+                self.add_log(
+                    'Accepted new connection from %s:%s, username: %s' %
+                    (*client_address, user)
                 )
-                print('sent %s to %s' % (user, client_socket))
-                time.sleep(.1)
+                self.send_to_one(
+                    client_socket, '[SERVER]', 'Connection accepted'
+                )
+                for user in self.cur_users:
+                    time.sleep(.1)
+                    self.send_to_one(
+                        client_socket, '[userlist]', user
+                    )
+                    print('sent %s to %s' % (user, client_socket))
             # tell message to clients
             for c_socket in self.clients:
                 self.send_to_one(c_socket, user, message)
